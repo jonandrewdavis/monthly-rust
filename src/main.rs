@@ -8,6 +8,8 @@ use std::fs::File;
 
 // PREP - Problem, Return, Example, Pseudocode
 
+// TODO: Init commit
+
 // read from path
 // make an import function
 // get a list
@@ -23,6 +25,8 @@ use std::fs::File;
 
 // Slider on how many must match ( 2 - 6)
 // Move things out into modules
+
+// mark as quartlery, half yearly, yearly, etc.
 
 // naive matching
 
@@ -41,59 +45,96 @@ struct CSVTransaction {
     Amount: f64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Transaction {
     full_desc: String,
     amount: f64,
-    count: u32,
+    count: i32,
+    frequency: i32,
+    checked: bool,
 }
 
 fn main() -> Result<(), csv::Error> {
-    let mut reader: Reader<File> = Reader::from_path("test/chase_sapphire.csv").unwrap();
+    let mut reader: Vec<Reader<File>> = vec![
+        Reader::from_path("test/chase_sapphire.csv").unwrap(),
+        Reader::from_path("test/chase_amz.csv").unwrap(),
+    ];
 
-    let mut list: Vec<CSVTransaction> = Vec::new();
-    let mut transactions_map: HashMap<String, Transaction> = HashMap::new();
+    fn list_from_csvs(reader: &mut Vec<Reader<File>>) -> Vec<CSVTransaction> {
+        let mut list: Vec<CSVTransaction> = Vec::new();
+        for single_reader in reader.iter_mut() {
+            for transaction in single_reader.deserialize() {
+                list.push(transaction.unwrap());
+            }
+        }
+        return list;
+    }
 
-    // Deserialize the CSV records into a vector of `CSVTransaction`s.
-    for transaction in reader.deserialize() {
-        let transaction: CSVTransaction = transaction?;
-        list.push(transaction);
+    fn format_identifier(s: &str) -> &str {
+        if let Some(i) = s.find('#') {
+            return &s[..i];
+        }
+        if let Some(i) = s.find('*') {
+            return &s[..i];
+        }
+        s
     }
 
     // TODO: This is a mess, please improve
     fn get_matched_from_csv(
         transactions: &Vec<CSVTransaction>,
         transaction_map: &mut HashMap<String, Transaction>,
-    ) {
+    ) -> HashMap<String, Transaction> {
         transactions
             .iter()
             .for_each(|transaction: &CSVTransaction| {
                 if transaction.Amount > 0.0 {
                     return;
                 };
-                let desc = transaction.Description.clone().to_lowercase()[0..4].to_string();
+
+                let identifier = format_identifier(&transaction.Description);
                 let full_desc = transaction.Description.clone();
-                let hash_key = transaction.Amount.to_string() + &desc;
+                let hash_key = (identifier.to_string() + &transaction.Amount.abs().to_string())
+                    .replace('.', ""); // TODO: Sanitize
                 let new_transaction = transaction_map.entry(hash_key).or_insert(Transaction {
                     full_desc,
                     amount: transaction.Amount.abs(),
                     count: 0,
+                    frequency: 12,
+                    checked: true,
                 });
                 new_transaction.count += 1;
             });
 
-        let recurring: HashMap<_, _> = transaction_map
-            .into_iter()
-            .filter(|(_, transaction)| transaction.count > 6)
-            .collect();
-
-        let monthly = recurring.values().fold(0.0, |acc, x| acc + x.amount);
-
-        println!("Monthly: {:.2}, Total: {:.2}", monthly, monthly * 12.0);
-        println!("Current: {:?}", recurring.values());
+        return transaction_map.clone();
     }
 
-    get_matched_from_csv(&list, &mut transactions_map);
+    // TODO: One filter that takes multiple arguements?
+    fn custom_filter(transaction: &Transaction, detect: &i32) -> bool {
+        transaction.count >= *detect && transaction.checked
+    }
+
+    // Main Work
+    let mut transactions_map: HashMap<String, Transaction> = HashMap::new();
+    let list = list_from_csvs(&mut reader);
+
+    let all_transactions = get_matched_from_csv(&list, &mut transactions_map);
+    const detect_count: i32 = 6;
+
+    let recurring: HashMap<_, _> = all_transactions
+        .into_iter()
+        .filter(|(_, transaction)| custom_filter(&transaction, &detect_count))
+        .collect();
+
+    // Stateless computed values, TODO: should use frequency
+    let monthly = recurring.values().fold(0.0, |acc, x| acc + x.amount);
+
+    println!(
+        "{}, {}",
+        format!("Monthly: ${:.2}", monthly).red().bold(),
+        format!("Per year: ${:.2}", monthly * 12.0).yellow().bold()
+    );
+    println!("{}", format!("Current: {:?}", recurring).green());
 
     Ok(())
 }
