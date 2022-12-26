@@ -20,13 +20,18 @@ error_chain! {
 fn main() -> Result<()> {
     let options = eframe::NativeOptions {
         drag_and_drop_support: true,
-        initial_window_size: Some(egui::vec2(320.0, 240.0)),
+        initial_window_size: Some(egui::vec2(380.0, 640.0)),
         ..Default::default()
     };
     eframe::run_native(
         "monthly by andrew",
         options,
-        Box::new(|_cc| Box::new(MonthlyApp::default())),
+        Box::new(|_cc| {
+            Box::new(MonthlyApp {
+                detect_count: 6,
+                ..Default::default()
+            })
+        }),
     );
 
     Ok(())

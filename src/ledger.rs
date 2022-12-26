@@ -32,8 +32,8 @@ pub fn get_hello() -> String {
     "hello world from ledger".to_string()
 }
 
-pub fn filter_transactions_by(transaction: &Transaction, detect: &i32) -> bool {
-    transaction.count >= *detect && transaction.checked
+pub fn filter_transactions_by(transaction: &Transaction, detect_count: &i32) -> bool {
+    transaction.count >= *detect_count
 }
 
 fn format_identifier(s: &str) -> &str {
@@ -112,10 +112,11 @@ pub struct MonthlyTransactions {
     pub monthly: f64,
 }
 
-pub fn get_monthly_total(transactions: &HashMap<String, Transaction>) -> f64 {
+pub fn get_monthly_total(transactions: &HashMap<String, Transaction>, detect_count: &i32) -> f64 {
     // TODO: Filter these to only count checked!
     transactions
         .into_iter()
+        .filter(|(_, transaction)| filter_transactions_by(transaction, detect_count))
         .filter(|(_, transaction)| transaction.checked)
         .fold(0.0, |acc, (x, y)| acc + y.amount)
 }
@@ -137,17 +138,6 @@ pub fn get_monthly_transactions(dir: &String) -> HashMap<String, Transaction> {
     //     return Ok(());
     // }
 
-    // TODO: This will be an arg or slider
-    let detect_count: i32 = 6;
-
-    let recurring: HashMap<String, Transaction> = all_transactions
-        .into_iter()
-        .filter(|(_, transaction)| filter_transactions_by(&transaction, &detect_count))
-        .collect();
-
-    // // Stateless computed values, TODO: should use frequency
-    let monthly = recurring.values().fold(0.0, |acc, x| acc + x.amount);
-
     // println!(
     //     "{}, {}",
     //     format!("Monthly: ${:.2}", monthly).red().bold(),
@@ -155,7 +145,7 @@ pub fn get_monthly_transactions(dir: &String) -> HashMap<String, Transaction> {
     // );
     // println!("{}", format!("Current: {:?}", recurring).green());
 
-    return recurring;
+    return all_transactions;
     // return MonthlyTransactions {
     //     transactions: recurring,
     //     monthly: monthly,

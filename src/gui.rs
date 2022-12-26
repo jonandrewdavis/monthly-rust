@@ -13,10 +13,13 @@ use crate::ledger::{
 
 #[derive(Default)]
 pub struct MonthlyApp {
-    dropped_files: Vec<egui::DroppedFile>,
-    picked_path: Option<String>,
-    picked_folder: Option<String>,
-    transactions: HashMap<String, Transaction>,
+    pub dropped_files: Vec<egui::DroppedFile>,
+    pub picked_path: Option<String>,
+    pub picked_folder: Option<String>,
+    pub transactions: HashMap<String, Transaction>,
+    // pub filtered_transactions:
+    pub detect_count: i32,
+    pub total: f64,
 }
 
 impl eframe::App for MonthlyApp {
@@ -59,25 +62,62 @@ impl eframe::App for MonthlyApp {
                 });
             };
 
+            let slider =
+                ui.add(egui::Slider::new(&mut self.detect_count, 0..=20).text("Frequency Filter"));
+
+            if slider.changed() {
+                // if let Some(picked_folder) = &self.picked_folder {
+                //     self.transactions = get_monthly_transactions(&picked_folder);
+                // }
+            }
+
+            // TRANSACTIONS
             if self.transactions.len() > 0 {
+                // let filtered_transactions = self.transactions.iter().filter(|(_, &transaction)| {
+                //     filter_transactions_by(&transaction, &self.detect_count)
+                // });
+
                 ui.vertical(|ui| {
-                    for (id, mut transaction) in self.transactions.clone() {
-                        ui.horizontal(|ui| {
-                            ui.label(format!("Desc: {}", transaction.full_desc));
-                            ui.label(format!("Amount: {}", transaction.amount));
-                            if ui.checkbox(&mut transaction.checked, "").clicked() {
-                                self.transactions.insert(id, Transaction { ..transaction });
-                            };
+                    self.transactions
+                        .clone()
+                        .iter_mut()
+                        .filter(|(i, transaction)| {
+                            filter_transactions_by(&transaction, &self.detect_count)
+                        })
+                        .for_each(|(i, mut transaction)| {
+                            ui.horizontal(|ui| {
+                                ui.label(format!("Desc: {}", transaction.full_desc));
+                                ui.label(format!("Amount: {}", transaction.amount));
+                                if ui.checkbox(&mut transaction.checked, "").clicked() {
+                                    self.transactions.insert(
+                                        i.to_string(),
+                                        Transaction {
+                                            ..transaction.clone()
+                                        },
+                                    );
+                                };
+                            });
                         });
-                    }
+
+                    let total = get_monthly_total(&self.transactions, &self.detect_count);
+                    ui.label(
+                        RichText::new(format!("Total: {}", total)).font(FontId::proportional(28.0)),
+                    );
+
+                    // for (id, mut transaction) in self.transactions.clone() {
+                    //     ui.horizontal(|ui| {
+                    //         ui.label(format!("Desc: {}", transaction.full_desc));
+                    //     });
+                    // }
                 });
             }
 
             if self.transactions.len() > 0 {
-                let total = get_monthly_total(&self.transactions);
-                ui.label(
-                    RichText::new(format!("Total: {}", total)).font(FontId::proportional(28.0)),
-                );
+                // self.total = get_monthly_total(&self.transactions);
+                // ui.label(
+                //     RichText::new(format!("Total: {}", self.total))
+                //         .font(FontId::proportional(28.0)),
+                // );
             }
 
             // Show dropped files (if any):
